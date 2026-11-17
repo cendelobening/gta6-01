@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLMAR HEAT — an open-world crime story in Solmar Bay</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0d1620;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, sans-serif;
+  }
+  #wrap { text-align: center; }
+  canvas {
+    display: block;
+    width: 1280px;
+    height: 720px;
+    max-width: 96vw;
+    max-height: 92vh;
+    background: #1a2a33;
+    border: 2px solid #ffd94d;
+    border-radius: 6px;
+    cursor: crosshair;
+  }
+  #foot {
+    color: #8fa3b0;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div id="foot">SOLMAR HEAT — an original open-world crime game. WASD move &middot; E enter cars &middot; mouse aim, click to shoot &middot; P pause &middot; M mute</div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
