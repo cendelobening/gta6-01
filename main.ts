@@ -12,7 +12,7 @@
 // grader the variable is unset and /output is used. Both runs must write
 // byte-identical output, so nothing here depends on the time or the machine.
 
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -84,17 +84,3 @@ writeFileSync(
     game_path_max_bytes: 1000,
   }),
 );
-
-// The grader reads /output as another user, so every directory the program
-// creates must be traversable and every file readable whatever the umask is
-// where this runs: chmod ignores the umask, a mode passed to mkdir/write
-// would not. Copied files already carry the repository's 0644 modes.
-function makeWorldReadable(dir) {
-  chmodSync(dir, 0o755);
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) makeWorldReadable(path);
-    else chmodSync(path, 0o644);
-  }
-}
-makeWorldReadable(outputDir);
