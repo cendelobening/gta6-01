@@ -28,9 +28,6 @@ export class Renderer {
   drawWorld(world, screen) {
     const ctx = this.ctx;
     const cam = this.camera;
-    // Stash the frame time so helpers (police light bars, foam drift) can
-    // animate from the deterministic world clock, never the wall clock.
-    this.frameTime = world.time;
     ctx.fillStyle = '#1a2a33';
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     ctx.save();
@@ -44,38 +41,10 @@ export class Renderer {
     for (const pt of world.particles) this.drawParticle(ctx, pt);
     this.drawPlayer(world, ctx);
     ctx.restore();
-    this.drawSunsetGrade(ctx);
     if (screen === SCREEN_PLAY) {
       this.drawHud(world, ctx);
       this.drawMinimap(world, ctx);
     }
-  }
-
-  /** Golden-hour grade painted over the world (never over the HUD): a warm
-   * wash from the top of the frame plus a soft radial vignette that deepens
-   * the corners, so every scene reads as late-afternoon Solmar Bay. */
-  drawSunsetGrade(ctx) {
-    const warm = ctx.createLinearGradient(0, 0, 0, VIEW.height);
-    warm.addColorStop(0, 'rgba(255,166,66,0.14)');
-    warm.addColorStop(0.45, 'rgba(255,120,80,0.05)');
-    warm.addColorStop(1, 'rgba(64,20,80,0.07)');
-    ctx.fillStyle = warm;
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    // Low sun glow pooled near the horizon line of the frame.
-    const glow = ctx.createRadialGradient(VIEW.width * 0.28, VIEW.height * 0.92, 40, VIEW.width * 0.28, VIEW.height * 0.92, 520);
-    glow.addColorStop(0, 'rgba(255,176,84,0.10)');
-    glow.addColorStop(1, 'rgba(255,176,84,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    const cx = VIEW.width / 2;
-    const cy = VIEW.height / 2;
-    const radius = Math.hypot(cx, cy);
-    const vignette = ctx.createRadialGradient(cx, cy, radius * 0.42, cx, cy, radius);
-    vignette.addColorStop(0, 'rgba(26,8,38,0)');
-    vignette.addColorStop(0.72, 'rgba(26,8,38,0.07)');
-    vignette.addColorStop(1, 'rgba(26,8,38,0.20)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   }
 
   drawGround(world, ctx, cam) {
@@ -97,45 +66,10 @@ export class Renderer {
       ctx.fillRect(d.x, d.y, d.w, d.h);
       ctx.globalAlpha = 1;
     }
-    // Mow stripes: a faint checker over the grass blocks between roads, so
-    // the lawns read as tended ground instead of one flat fill. Stripes sit
-    // under the roads, which are painted over them below.
-    const blockXs = [320, ...roadXs(), WORLD.width];
-    const blockYs = [280, ...roadYs(), WORLD.height];
-    for (let i = 0; i + 1 < blockXs.length; i += 1) {
-      for (let j = 0; j + 1 < blockYs.length; j += 1) {
-        if ((i + j) % 2 !== 0) continue;
-        ctx.fillStyle = (i % 2 === 0) ? 'rgba(255,255,220,0.05)' : 'rgba(10,40,10,0.05)';
-        ctx.fillRect(blockXs[i], blockYs[j], blockXs[i + 1] - blockXs[i], blockYs[j + 1] - blockYs[j]);
-      }
-    }
     // Parks.
     for (const park of world.city.parks) {
       ctx.fillStyle = COLORS.park;
       ctx.fillRect(park.x, park.y, park.w, park.h);
-    }
-    // Sand speckles: a fixed, hashed scatter of darker grains on the beach.
-    ctx.fillStyle = 'rgba(150,115,60,0.35)';
-    for (let y = 300; y < WORLD.height - 20; y += 46) {
-      for (let k = 0; k < 3; k += 1) {
-        const sx = 266 + ((y * 7 + k * 53) % 48);
-        const sy = y + ((y * 3 + k * 29) % 34);
-        ctx.fillRect(sx, sy, 3, 2);
-      }
-    }
-    // Foam lines where the sea meets the sand, drifting with the world
-    // clock: two broken white crests that slide slowly along the shore.
-    const drift = Math.sin(world.time * 0.7) * 6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.62)';
-    ctx.lineWidth = 2.5;
-    for (const foamX of [252, 240]) {
-      ctx.beginPath();
-      for (let y = 286; y < WORLD.height; y += 28) {
-        const waveX = foamX + Math.sin(world.time * 1.3 + y * 0.02) * 4 + (foamX === 252 ? drift : -drift);
-        if (y === 286) ctx.moveTo(waveX, y);
-        else ctx.lineTo(waveX, y);
-      }
-      ctx.stroke();
     }
     // Roads.
     ctx.fillStyle = COLORS.road;
@@ -164,117 +98,38 @@ export class Renderer {
 
   drawCity(world, ctx) {
     for (const b of world.city.buildings) {
-      // Stable per-building hash (position arithmetic only) so rooftop
-      // details and lit windows never flicker between frames.
-      const hash = Math.abs(Math.floor(b.x * 31 + b.y * 17));
-      // Long, soft drop shadow for fake height.
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.fillRect(b.x + 10, b.y + 12, b.w, b.h);
-      // Full roof surface: wall-colour parapet border, roof colour inside.
+      ctx.fillStyle = '#00000033';
+      ctx.fillRect(b.x + 5, b.y + 6, b.w, b.h);
       ctx.fillStyle = COLORS.buildingWall;
       ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = b.roof;
-      ctx.fillRect(b.x + 5, b.y + 5, b.w - 10, b.h - 10);
-      // Parapet highlight along the top edge, shadow line just inside the
-      // rim so the roof surface reads as recessed rather than painted on.
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.fillRect(b.x, b.y, b.w, 3);
-      ctx.fillStyle = 'rgba(0,0,0,0.14)';
-      ctx.fillRect(b.x + 5, b.y + 5, b.w - 10, 3);
-      ctx.fillRect(b.x + 5, b.y + 5, 3, b.h - 10);
-      // Rooftop details, chosen by the hash.
-      if (hash % 5 !== 0) {
-        ctx.fillStyle = '#9aa0a3';
-        ctx.fillRect(b.x + 10 + (hash % 23), b.y + 10 + (hash % 13), 14, 10);
-        ctx.fillStyle = '#7e858a';
-        ctx.fillRect(b.x + 12 + (hash % 23), b.y + 12 + (hash % 13), 14, 3);
-      }
-      if (hash % 3 === 1 && b.w > 84 && b.h > 70) {
-        ctx.fillStyle = '#8d9296';
-        ctx.fillRect(b.x + b.w - 30 - (hash % 11), b.y + b.h - 28, 12, 9);
-      }
-      if (b.floors >= 5) {
-        // Water tower: brown tank on legs with a cone cap, near a corner.
-        const tx = b.x + b.w - 26;
-        const ty = b.y + 10;
-        ctx.fillStyle = '#6e5136';
-        ctx.fillRect(tx, ty + 6, 16, 12);
-        ctx.fillStyle = '#54382a';
-        ctx.beginPath();
-        ctx.moveTo(tx - 2, ty + 6);
-        ctx.lineTo(tx + 8, ty - 3);
-        ctx.lineTo(tx + 18, ty + 6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(tx + 2, ty + 18, 3, 5);
-        ctx.fillRect(tx + 11, ty + 18, 3, 5);
-      } else if (hash % 4 === 0 && b.w > 92 && b.h > 76) {
-        // Rooftop pool: teal water inside a pale deck rim.
-        ctx.fillStyle = '#e8e2d2';
-        ctx.fillRect(b.x + 12, b.y + b.h - 30, 34, 20);
-        ctx.fillStyle = '#3fbfae';
-        ctx.fillRect(b.x + 15, b.y + b.h - 27, 28, 14);
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fillRect(b.x + 18, b.y + b.h - 24, 12, 3);
-      }
-      // Windows: a denser grid, a few warm-lit at golden hour.
-      const cols = Math.max(1, Math.floor((b.w - 12) / 19));
-      const rows = Math.max(1, Math.floor((b.h - 12) / 19));
+      ctx.fillRect(b.x, b.y, b.w, Math.min(14, b.h * 0.2));
+      // Windows.
+      ctx.fillStyle = '#2b3a55';
+      const cols = Math.max(1, Math.floor(b.w / 26));
+      const rows = Math.max(1, Math.floor(b.h / 26));
       for (let i = 0; i < cols; i += 1) {
         for (let j = 0; j < rows; j += 1) {
-          if ((i * 3 + j + hash) % 7 === 0) continue;
-          const lit = (i * 7 + j * 13 + hash) % 9 === 0;
-          ctx.fillStyle = lit ? '#ffd98a' : '#2b3a55';
-          ctx.fillRect(b.x + 8 + i * 18, b.y + 8 + j * 18, 8, 10);
+          if ((i + j) % 3 === 0) continue;
+          ctx.fillRect(b.x + 8 + i * 24, b.y + 20 + j * 24, 10, 12);
         }
       }
-      // Darker shading strip along the bottom edge sells the height.
-      ctx.fillStyle = 'rgba(0,0,0,0.24)';
-      ctx.fillRect(b.x, b.y + b.h - 7, b.w, 7);
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
-      ctx.fillRect(b.x + b.w - 6, b.y, 6, b.h);
-    }
-    // Palm trees: a short leaning trunk and six curved fronds, no lollipops.
-    for (const t of world.city.trees) {
-      const sway = Math.floor(t.x * 13 + t.y * 7) % 5 - 2;
-      // Ground shadow.
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.beginPath();
-      ctx.ellipse(t.x + 5, t.y + 6, 11, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Trunk: a tapered line leaning with the tree's stable sway.
-      ctx.strokeStyle = '#6b4a2b';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(t.x - sway, t.y + 8);
-      ctx.quadraticCurveTo(t.x, t.y + 2, t.x + sway, t.y - 4);
-      ctx.stroke();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#86603a';
-      ctx.beginPath();
-      ctx.moveTo(t.x - sway, t.y + 8);
-      ctx.quadraticCurveTo(t.x, t.y + 2, t.x + sway, t.y - 4);
-      ctx.stroke();
-      // Fronds: six quadratic arcs fanning out, alternating two greens.
-      const crownX = t.x + sway;
-      const crownY = t.y - 4;
-      for (let k = 0; k < 6; k += 1) {
-        const a = (k / 6) * Math.PI * 2 + sway * 0.14;
-        const tipX = crownX + Math.cos(a) * 15;
-        const tipY = crownY + Math.sin(a) * 11 + 5;
-        const midX = crownX + Math.cos(a) * 8;
-        const midY = crownY + Math.sin(a) * 6 - 4;
-        ctx.strokeStyle = k % 2 === 0 ? '#2f7a35' : '#4da34d';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(crownX, crownY);
-        ctx.quadraticCurveTo(midX, midY, tipX, tipY);
-        ctx.stroke();
+      if (b.floors >= 4) {
+        ctx.fillStyle = '#00000022';
+        ctx.fillRect(b.x, b.y, b.w, 4);
       }
-      // Coconut cluster at the crown.
-      ctx.fillStyle = '#7a5a30';
+    }
+    // Palm trees.
+    for (const t of world.city.trees) {
+      ctx.fillStyle = '#6b4a2b';
+      ctx.fillRect(t.x - 2, t.y - 2, 4, 4);
+      ctx.fillStyle = '#3f8a3f';
       ctx.beginPath();
-      ctx.arc(crownX, crownY + 1, 3, 0, Math.PI * 2);
+      ctx.arc(t.x, t.y, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#57a857';
+      ctx.beginPath();
+      ctx.arc(t.x - 3, t.y - 3, 5, 0, Math.PI * 2);
       ctx.fill();
     }
     // Landmark labels.
@@ -340,47 +195,18 @@ export class Renderer {
     ctx.fillRect(-CAR.length / 2 + 3, -CAR.width / 2 + 3, CAR.length, CAR.width);
     ctx.fillStyle = car.color;
     ctx.fillRect(-CAR.length / 2, -CAR.width / 2, CAR.length, CAR.width);
-    // Racing stripe on roughly a third of civilian cars (stable per car).
-    const stripeHash = car.id != null ? car.id : Math.floor(car.x + car.y);
-    if (!car.police && stripeHash % 3 === 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.fillRect(-CAR.length / 2, -3, CAR.length, 6);
-      ctx.fillStyle = 'rgba(20,20,30,0.35)';
-      ctx.fillRect(-CAR.length / 2, -1, CAR.length, 2);
-    }
-    // Shaded cabin: dark glasshouse with a lighter roof panel inside it.
-    ctx.fillStyle = '#1d232c';
-    ctx.fillRect(-8, -CAR.width / 2 + 2, 17, CAR.width - 4);
-    ctx.fillStyle = '#39424e';
-    ctx.fillRect(-5, -CAR.width / 2 + 5, 11, CAR.width - 10);
-    ctx.fillStyle = 'rgba(190,220,245,0.55)';
-    ctx.fillRect(6, -CAR.width / 2 + 3, 3, CAR.width - 6);
-    // Headlights at the nose, red taillights at the rear.
-    ctx.fillStyle = '#ffeeb8';
-    ctx.fillRect(CAR.length / 2 - 5, -CAR.width / 2 + 3, 4, 6);
-    ctx.fillRect(CAR.length / 2 - 5, CAR.width / 2 - 9, 4, 6);
-    ctx.fillStyle = '#e8322a';
-    ctx.fillRect(-CAR.length / 2 + 1, -CAR.width / 2 + 3, 3, 6);
-    ctx.fillRect(-CAR.length / 2 + 1, CAR.width / 2 - 9, 3, 6);
+    ctx.fillStyle = '#222831';
+    ctx.fillRect(-6, -CAR.width / 2 + 3, 14, CAR.width - 6);
+    ctx.fillStyle = '#dfe8f2';
+    ctx.fillRect(CAR.length / 2 - 6, -CAR.width / 2 + 4, 4, 6);
+    ctx.fillRect(CAR.length / 2 - 6, CAR.width / 2 - 10, 4, 6);
     if (car.police) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(-CAR.length / 2 + 2, -CAR.width / 2, CAR.length - 4, 7);
-      // Light bar flashes: red and blue alternate on the world clock.
-      const baseAlpha = car.wrecked ? 0.55 : 1;
-      const phase = Math.floor((this.frameTime || 0) * 4) % 2;
-      ctx.globalAlpha = baseAlpha * (phase === 0 ? 1 : 0.22);
       ctx.fillStyle = '#ff3b30';
       ctx.fillRect(-8, -CAR.width / 2 - 3, 7, 5);
-      ctx.globalAlpha = baseAlpha * (phase === 1 ? 1 : 0.22);
       ctx.fillStyle = '#2b6bff';
       ctx.fillRect(1, -CAR.width / 2 - 3, 7, 5);
-      // Halo glow on whichever lamp is lit.
-      ctx.globalAlpha = baseAlpha * 0.28;
-      ctx.fillStyle = phase === 0 ? '#ff3b30' : '#2b6bff';
-      ctx.beginPath();
-      ctx.arc(phase === 0 ? -5 : 4, -CAR.width / 2 - 1, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = baseAlpha;
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 8px system-ui, sans-serif';
       ctx.textAlign = 'center';
@@ -465,9 +291,6 @@ export class Renderer {
     // Top-left panel: health, cash, wanted stars.
     ctx.fillStyle = 'rgba(16,24,32,0.78)';
     ctx.fillRect(12, 12, 300, 92);
-    ctx.strokeStyle = '#ffd94d';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(12, 12, 300, 92);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 16px system-ui, sans-serif';
     ctx.fillText(`JAX MARLOWE  •  $${world.money}`, 24, 36);
@@ -487,9 +310,6 @@ export class Renderer {
     const job = world.missions.job;
     ctx.fillStyle = 'rgba(16,24,32,0.78)';
     ctx.fillRect(12, 112, 460, 54);
-    ctx.strokeStyle = '#ffd94d';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(12, 112, 460, 54);
     ctx.fillStyle = '#ffd94d';
     ctx.font = 'bold 14px system-ui, sans-serif';
     ctx.fillText(job ? `JOB ${job.id}/5 — ${job.title.toUpperCase()}` : 'FREE ROAM', 24, 134);
@@ -538,24 +358,13 @@ export class Renderer {
     const sy = size / WORLD.height;
     ctx.fillStyle = 'rgba(16,24,32,0.8)';
     ctx.fillRect(x0 - 4, y0 - 4, size + 8, size + 8);
-    // Sea, then a sand strip for the beach, then dark slate-green land so
-    // the lighter roads read as a network instead of a green grid.
     ctx.fillStyle = '#2e7f9e';
     ctx.fillRect(x0, y0, 260 * sx, size);
-    ctx.fillStyle = '#e8cf9a';
-    ctx.fillRect(x0 + 260 * sx, y0, 60 * sx, size);
-    ctx.fillStyle = '#3f5a3c';
-    ctx.fillRect(x0 + 320 * sx, y0, size - 320 * sx, size);
-    ctx.fillStyle = '#9a937f';
+    ctx.fillStyle = '#7fae5a';
+    ctx.fillRect(x0 + 260 * sx, y0, size - 260 * sx, size);
+    ctx.fillStyle = '#3d3a38';
     for (const x of roadXs()) ctx.fillRect(x0 + x * sx - 1, y0, 2, size);
-    for (const y of roadYs()) ctx.fillRect(x0, y0 + y * sy - 1, size, 2);
-    // Landmarks as small gold dots.
-    ctx.fillStyle = '#ffd94d';
-    for (const lm of world.city.landmarks) {
-      ctx.beginPath();
-      ctx.arc(x0 + lm.x * sx, y0 + lm.y * sy, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    for (const y of roadYs()) ctx.fillRect(x0, y0 + y * sy, size, 2);
     ctx.fillStyle = '#ffd94d';
     const marker = world.missions.marker();
     if (marker) {
@@ -567,31 +376,15 @@ export class Renderer {
       ctx.fillStyle = '#2b6bff';
       ctx.fillRect(x0 + car.x * sx - 2, y0 + car.y * sy - 2, 4, 4);
     }
-    // Player as an oriented triangle (car angle while driving).
-    const heading = world.player.car ? world.player.car.angle : (world.player.aimAngle || world.player.angle);
-    ctx.save();
-    ctx.translate(x0 + world.player.x * sx, y0 + world.player.y * sy);
-    ctx.rotate(heading);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(7, 0);
-    ctx.lineTo(-5, -4.5);
-    ctx.lineTo(-2.5, 0);
-    ctx.lineTo(-5, 4.5);
-    ctx.closePath();
+    ctx.arc(x0 + world.player.x * sx, y0 + world.player.y * sy, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#ffd94d';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-    // Thin gold frame around the whole minimap, with a darker outer edge
-    // so the frame stays readable over bright grass and sand.
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(x0 - 5, y0 - 5, size + 10, size + 10);
-    ctx.strokeStyle = '#ffd94d';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x0 - 4, y0 - 4, size + 8, size + 8);
+    ctx.beginPath();
+    ctx.arc(x0 + world.player.x * sx, y0 + world.player.y * sy, 7, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px system-ui, sans-serif';
     ctx.textAlign = 'left';
@@ -601,36 +394,12 @@ export class Renderer {
   drawTitle(world, ctx) {
     // A live city behind the title: the world keeps simulating under it.
     this.drawWorld(world, SCREEN_TITLE);
-    // Sunset gradient veil: deep indigo at the top melting into warm
-    // magenta and burnt orange low over the bay.
-    const veil = ctx.createLinearGradient(0, 0, 0, VIEW.height);
-    veil.addColorStop(0, 'rgba(24,16,64,0.70)');
-    veil.addColorStop(0.45, 'rgba(94,28,84,0.60)');
-    veil.addColorStop(0.75, 'rgba(196,62,92,0.55)');
-    veil.addColorStop(1, 'rgba(238,118,52,0.58)');
-    ctx.fillStyle = veil;
+    ctx.fillStyle = 'rgba(10,18,28,0.62)';
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
     ctx.textAlign = 'center';
-    // Title in a gold-to-pink gradient with a soft warm glow behind it.
-    ctx.save();
-    ctx.shadowColor = 'rgba(255,120,60,0.55)';
-    ctx.shadowBlur = 26;
-    const titleGrad = ctx.createLinearGradient(VIEW.width / 2 - 320, 0, VIEW.width / 2 + 320, 0);
-    titleGrad.addColorStop(0, '#ffd94d');
-    titleGrad.addColorStop(0.55, '#ffab4a');
-    titleGrad.addColorStop(1, '#ff5e8a');
-    ctx.fillStyle = titleGrad;
+    ctx.fillStyle = '#ffd94d';
     ctx.font = 'bold 84px system-ui, sans-serif';
     ctx.fillText('SOLMAR HEAT', VIEW.width / 2, 250);
-    ctx.restore();
-    // Thin neon accent bar under the title.
-    const barGrad = ctx.createLinearGradient(VIEW.width / 2 - 260, 0, VIEW.width / 2 + 260, 0);
-    barGrad.addColorStop(0, 'rgba(255,217,77,0)');
-    barGrad.addColorStop(0.25, '#ffd94d');
-    barGrad.addColorStop(0.75, '#ff5e8a');
-    barGrad.addColorStop(1, 'rgba(255,94,138,0)');
-    ctx.fillStyle = barGrad;
-    ctx.fillRect(VIEW.width / 2 - 260, 266, 520, 3);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 22px system-ui, sans-serif';
     ctx.fillText('An open-world crime story in Solmar Bay', VIEW.width / 2, 292);

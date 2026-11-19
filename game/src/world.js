@@ -72,10 +72,7 @@ export class World {
   // ---- spawning ------------------------------------------------------------
   spawnTraffic() {
     const rng = this.rng;
-    // Denser streets (v3): 35 ambient cars, ~35% up from the original 26.
-    // Spawning still draws only from the seeded rng, in the same order of
-    // picks per car, so a given seed always builds the same city traffic.
-    for (let i = 0; i < 35; i += 1) {
+    for (let i = 0; i < 26; i += 1) {
       const vertical = rng() < 0.5;
       const road = vertical ? pick(rng, [620, 920, 1220, 1520, 1820, 2120, 2420, 2720, 3020, 3320])
         : pick(rng, [300, 600, 900, 1200, 1500, 1800, 2100, 2400]);
@@ -100,10 +97,6 @@ export class World {
       [1820, 2126, 0], [3020, 926, Math.PI],
       [620, 2126, 0], [2720, 1826, Math.PI / 2],
       [946, 2050, -Math.PI / 2], [3320, 1526, 0],
-      // Four extra spots (v3, ~+33% parked density), each 26 px off a road
-      // centre line like the originals so they clear buildings the same way.
-      [946, 926, -Math.PI / 2], [1546, 1526, Math.PI / 2],
-      [2426, 626, Math.PI / 2], [3326, 926, Math.PI / 2],
     ];
     // A parked car must sit on open ground: nudge the spot until it clears
     // every building (a car inside a wall can never be stolen or driven).
@@ -125,8 +118,7 @@ export class World {
 
   spawnPeds() {
     const rng = this.rng;
-    // Denser sidewalks (v3): 56 pedestrians, up from 42 (~+33%).
-    for (let i = 0; i < 56; i += 1) {
+    for (let i = 0; i < 42; i += 1) {
       const x = range(rng, 300, WORLD.width - 100);
       const y = range(rng, 320, WORLD.height - 100);
       if (isInSea(x, y) || isOnRoad(x, y)) continue;
